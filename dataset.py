@@ -5,7 +5,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 from argparse import ArgumentParser
 from torch.utils.data import DataLoader
-from data import *
 from tqdm import tqdm
 import torchvision
 from torch.utils.tensorboard import SummaryWriter
@@ -32,7 +31,8 @@ class shift_by_random(object):
 
 class Ragam_Dataset(torch.utils.data.Dataset):
    
-    def __init__(self,path = "/Users/madhavapaliyam/Documents/CMSC/rando/raganet/data/pickle_files", transpose = False, length = 1500, chunk_size = 150, train = True,transform = None):
+    def __init__(self,path = "/Users/madhavapaliyam/Documents/CMSC/rando/raganet/data/npy",
+                 train = True, transform = None):
         
         print('Initializing dataset:')
 
@@ -40,40 +40,35 @@ class Ragam_Dataset(torch.utils.data.Dataset):
         
         data = []
         labels = []
-        ragam_names = []
+        ragam_names = {}
         
         for ragam_id, p in enumerate(os.listdir(path)):
             if p[0] != '.':
-                ragam_names.append(p)
-                file = open(os.path.join(path,p), "rb")
-                ragam_info = pickle.load(file)
-                for i,song_sttft in enumerate(ragam_info):
-                    for x in range(0, song_sttft.shape[1], length):
-                        slice = song_sttft[:,x : x + length]
-                        if slice.shape[1] == length:
-                            song_chunks = []
-                            for j in range(0, slice.shape[1], chunk_size):
-                                chunk = slice[:,j : j + chunk_size]
-                                if chunk.shape[1] == chunk_size:
-                                    song_chunks.append(chunk)
-                                    
-                            data.append(np.array(song_chunks))
-                            labels.append(ragam_id - 1)
-                print('Ragam pickle procesed: ', p)
+                ragam_names[ragam_id] = p[:-3]
+                npy_file_data = np.load(os.path.join(path, p))
+                l = np.tile(ragam_id, npy_file_data.shape[0])
+                labels.extend(l)
+                data.extend(npy_file_data)
+                
+        self.data = np.array(data).astype(float)
+        self.labels = np.array(labels).astype(float)
         
-        
-        self.data = torch.from_numpy(np.array(data))
-        self.labels = torch.from_numpy(np.array(labels))
-        
-        X_train, X_val, y_train, y_val = train_test_split(self.data, self.labels, test_size=0.15, random_state=4)
+        X_train, X_val, y_train, y_val = train_test_split(self.data, self.labels, 
+                                        test_size=0.15, random_state=4, shuffle = True)
         
         if train:
             self.data = X_train
             self.labels = y_train
+            print("Train set has ", len(self.labels), "labels.")
+            unique, counts = np.unique(self.labels, return_counts=True)
+            print(dict(zip(unique, counts)))
         else:
             self.data = X_val
             self.labels = y_val
-        print(len(self.labels), ' chunks.')
+            print("Validation set has ", len(self.labels), "labels.")
+            unique, counts = np.unique(self.labels, return_counts=True)
+            print(dict(zip(unique, counts)))
+            
         self.ragam_names = ragam_names
         print('Finished initializing: ', self.ragam_names)
     

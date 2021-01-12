@@ -17,6 +17,69 @@ from collections import OrderedDict
 
 
 
+class m_block(nn.Module):
+    def __init__(self, inplanes, planes, y_k_s = 5):
+        super(m_block, self).__init__()
+        p_y = y_k_s // 2
+        self.conv_s1 = nn.Conv2d(inplanes, planes, kernel_size=(1,y_k_s), padding=(0,p_y), bias=False)
+        self.bn1 = nn.BatchNorm2d(planes)
+        self.conv_s2 = nn.Conv2d(inplanes, planes, kernel_size=(3,y_k_s), padding=(1,p_y), bias=False)
+        self.bn2 = nn.BatchNorm2d(planes)
+        self.conv_s3 = nn.Conv2d(inplanes, planes, kernel_size=(5,y_k_s), padding=(2,p_y), bias=False)
+        self.bn3 = nn.BatchNorm2d(planes)
+        self.relu = nn.ReLU(inplace=True)
+        
+        self.project = nn.Sequential(
+            nn.Conv2d(3 * planes, planes, 1, bias=False),
+            nn.BatchNorm2d(inplanes),
+            nn.ReLU(inplace=True),
+            nn.Dropout(0.2),
+            nn.Conv2d(planes, planes, kernel_size=(1,3), padding=(0,1), bias=False),
+            nn.BatchNorm2d(inplanes),
+            nn.ReLU(inplace=True),
+            nn.Dropout(0.1))
+
+    def forward(self, x):
+        d_1_feat = self.conv_s1(x)
+        d_2_feat = self.conv_s2(x)
+        d_3_feat = self.conv_s3(x)
+        feat_vect = torch.cat([d_1_feat, d_2_feat, d_3_feat], dim = 1)
+        # residual connection
+        out = self.project(feat_vect) + x 
+        return out
+        
+class raganet(nn.Module):
+    def __init__(self, height = 12, num_ragas = 2):
+        super(raganet, self).__init__()
+        self.conv1 = nn.Conv2d(1, 32, kernel_size=(1,3), padding=(0,1), bias=False)
+        self.bn1 = nn.BatchNorm2d(32)
+        self.relu = nn.ReLU(inplace=True)
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=(2,4), padding=1)
+        
+        self.b1 = m_block(32, 64, 5)
+        self.b2 = m_block(64, 64, 3)
+        self.b3 = m_block(64, 128, 3)
+        self.fc = nn.Linear(2560, num_ragas)
+                
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+#         print(x.shape)
+        x = self.b1(x)
+        x = self.maxpool(x)
+#         print(x.shape)
+        x = self.b2(x)
+        x = self.maxpool(x)
+#         print(x.shape)
+        x = self.b3(x)
+        x = self.maxpool(x)
+#         print(x.shape)
+        x = x.view(x.size(0), -1)
+#         print(x.shape)
+        x = self.fc(x)
+        return x
+
 class feature_LSTM(nn.Module):
     def __init__(self, input_dim, hidden_dim, dropout,num_ragas, num_layers=2):
         super(feature_LSTM, self).__init__()
