@@ -33,6 +33,8 @@ if __name__ == "__main__":
         model = ragam_identifier_extractor_cnn_lstm(num_ragas = 2)
     elif options.stage == 'cnn':
         model = extractor_cnn(dropout = .1, seperate = True)
+    elif options.stage == 'raganet':
+        model = raganet(num_ragas = 2)
     print(model)
     
 #    optim = torch.optim.Adam(model.parameters(), lr=options.lr)
@@ -52,18 +54,18 @@ if __name__ == "__main__":
     
 
     print('--------------- DATA ---------------')
-    train_data = Ragam_Dataset(train = True, transform = transforms.Compose([shift_by_random(24)]))
+    train_data = Ragam_Dataset(train = True)
     
     val_data = Ragam_Dataset(train = False)
     
     train_loader = DataLoader(train_data, batch_size = batch_size, shuffle = True, num_workers = 3)
     
-    val_loader = DataLoader(val_data, batch_size = batch_size, shuffle = True, num_workers = 2)
+    val_loader = DataLoader(val_data, batch_size = batch_size, shuffle = False, num_workers = 2)
     
     '''training/validation loop'''
     print('--------------- TRAINING ---------------')
-    print('Logging to: ', options.name)
-    writer = SummaryWriter('./runs/' + options.name)
+    writer = SummaryWriter('./runs/' + str(options.name) + '_LR_' + str(options.lr)
+           + '_BS_' + str(options.bs)+ '_epochs_' + str(options.epochs) + '_stage_' + str(options.stage))
     
 
     for epoch in tqdm(range(epochs)):
