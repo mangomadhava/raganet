@@ -5,7 +5,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 from argparse import ArgumentParser
 from torch.utils.data import DataLoader
-from data import *
 from tqdm import tqdm
 import torchvision
 from torch.utils.tensorboard import SummaryWriter
@@ -31,11 +30,17 @@ class m_block(nn.Module):
         
         self.project = nn.Sequential(
             nn.Conv2d(3 * planes, planes, 1, bias=False),
+            nn.BatchNorm2d(planes),
+            nn.ReLU(inplace=True),
+            nn.Dropout(0.1),
+            nn.Conv2d(planes, inplanes, kernel_size=(1,3), padding=(0,1), bias=False),
             nn.BatchNorm2d(inplanes),
             nn.ReLU(inplace=True),
-            nn.Dropout(0.2),
-            nn.Conv2d(planes, planes, kernel_size=(1,3), padding=(0,1), bias=False),
-            nn.BatchNorm2d(inplanes),
+            nn.Dropout(0.1))
+        
+        self.upsample = nn.Sequential(
+            nn.Conv2d(inplanes, planes, kernel_size=(1,3), padding=(0,1), bias=False), 
+            nn.BatchNorm2d(planes),
             nn.ReLU(inplace=True),
             nn.Dropout(0.1))
 
@@ -46,35 +51,46 @@ class m_block(nn.Module):
         feat_vect = torch.cat([d_1_feat, d_2_feat, d_3_feat], dim = 1)
         # residual connection
         out = self.project(feat_vect) + x 
+        out = self.upsample(out)
         return out
+    
         
 class raganet(nn.Module):
     def __init__(self, height = 12, num_ragas = 2):
         super(raganet, self).__init__()
-        self.conv1 = nn.Conv2d(1, 32, kernel_size=(1,3), padding=(0,1), bias=False)
-        self.bn1 = nn.BatchNorm2d(32)
+        self.conv1 = nn.Conv2d(1, 16, kernel_size=(1,3), padding=(0,1), bias=False)
+        self.bn1 = nn.BatchNorm2d(16)
         self.relu = nn.ReLU(inplace=True)
-        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=(2,4), padding=1)
+        self.maxpool = nn.MaxPool2d(kernel_size=2, stride=(1,2), padding=0)
+        self.maxpool_end = nn.MaxPool2d(kernel_size = 2, stride = (2,3), padding = 0)
         
-        self.b1 = m_block(32, 64, 5)
-        self.b2 = m_block(64, 64, 3)
-        self.b3 = m_block(64, 128, 3)
-        self.fc = nn.Linear(2560, num_ragas)
+        self.b1 = m_block(16, 32, 5)
+#         self.b2 = m_block(32, 32, 5)
+#         self.b3 = m_block(32, 64, 5)
+#         self.b4 = m_block(64, 128, 3)
+#         self.b5 = m_block(128, 256, 3)
+        self.fc = nn.Linear(105600, num_ragas)
                 
     def forward(self, x):
         x = self.conv1(x)
         x = self.bn1(x)
-        x = self.relu(x)
+#         x = self.relu(x)
 #         print(x.shape)
         x = self.b1(x)
         x = self.maxpool(x)
 #         print(x.shape)
-        x = self.b2(x)
-        x = self.maxpool(x)
-#         print(x.shape)
-        x = self.b3(x)
-        x = self.maxpool(x)
-#         print(x.shape)
+#         x = self.b2(x)
+#         x = self.maxpool(x)
+# #         print(x.shape)
+#         x = self.b3(x)
+#         x = self.maxpool(x)
+# #         print(x.shape)
+#         x = self.b4(x)
+#         x = self.maxpool_end(x)
+# #         print(x.shape)
+#         x = self.b5(x)
+#         x = self.maxpool_end(x)
+# #         print(x.shape)
         x = x.view(x.size(0), -1)
 #         print(x.shape)
         x = self.fc(x)
