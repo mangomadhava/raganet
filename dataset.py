@@ -55,7 +55,7 @@ class shift_by_random(object):
     
 class Ragam_Dataset(torch.utils.data.Dataset):
    
-    def __init__(self,path = "/Users/madhavapaliyam/Documents/CMSC/rando/raganet/data/",
+    def __init__(self,path = "/gpfs/data1/cmongp1/mpaliyam/raganet/data/audio",
                  train = True, transform = None, test_size = .15):
         print('Initializing dataset:')  
         self.transform = transform
@@ -69,6 +69,11 @@ class Ragam_Dataset(torch.utils.data.Dataset):
         for ragam_id,p in enumerate(listdir_nohidden(path)):
             ragam_names[ragam_id] = p
             songs = absoluteFilePaths(os.path.join(path, p))
+            for s in songs: 
+                if not s.endswith('.mp3'):
+                    songs.remove(s)
+                    print(s, ' removed.')
+                    
             ind = int(len(songs) * (1 - test_size))
             l = np.tile(ragam_id, len(songs))
             
@@ -104,6 +109,10 @@ class Ragam_Dataset(torch.utils.data.Dataset):
         signal, sampling_rate = open_audio(file_path)
         if len(signal.shape) > 1: 
             signal = np.mean(signal, axis = 1)
+        if sampling_rate != 44100:
+            signal = librosa.resample(signal, sampling_rate, 44100)
+            sampling_rate = 44100
+            
             
         # get 30 second chunk
         len_index_30_sec = int(30 / (1 / sampling_rate))
@@ -114,15 +123,20 @@ class Ragam_Dataset(torch.utils.data.Dataset):
         signal = signal[start_index:start_index + len_index_30_sec]
         # if training change pitch randomly
         if self.train:
-            n_steps = np.random.randint(low = -5, high=5) 
+            n_steps = np.random.randint(low = -4, high=4) 
             signal = librosa.effects.pitch_shift(signal, sampling_rate, n_steps=n_steps)
         # extract harmonic 
         data_h = librosa.effects.harmonic(signal)
         # cqt transform
-        S = np.real(librosa.cqt(data_h, sr=sampling_rate, hop_length=hop_length)).astype(np.float16)
+        S = np.real(librosa.cqt(data_h, sr=sampling_rate, hop_length=hop_length)).astype(np.float32)
+
         
         d = torch.from_numpy(np.expand_dims(S, axis = 0)).type(torch.FloatTensor) 
+        # normalize 
+        d = F.normalize(d)
         l = torch.from_numpy(np.array(self.labels[idx])).type(torch.LongTensor)
+#         print(d.shape, sampling_rate, file_path)
+
         return d,l
     
     

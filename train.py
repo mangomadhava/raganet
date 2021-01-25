@@ -47,13 +47,13 @@ if __name__ == "__main__":
     else: 
         model = model.to(device)
         
-    print(summary(model, (1,12,600)))
+    print(summary(model, (1,84,1292)))
     print("Running on ", device)
           
     
-    optim = torch.optim.Adam(model.parameters(), lr=options.lr)
-#     optim = torch.optim.SGD(model.parameters(), lr = options.lr, momentum = .01)
-#     scheduler = torch.optim.lr_scheduler.MultiStepLR(optim, milestones=[], gamma=.1)
+#     optim = torch.optim.Adam(model.parameters(), lr=options.lr)
+    optim = torch.optim.SGD(model.parameters(), lr = options.lr, momentum = .01)
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(optim, milestones=[], gamma=.1)
     print('Optimizer: ', optim)
     
     epochs = options.epochs
@@ -69,25 +69,25 @@ if __name__ == "__main__":
 
     print('--------------- DATA ---------------')
     train_data = Ragam_Dataset(train = True,
-                               path = '/gpfs/data1/cmongp1/mpaliyam/raganet/data/numpy_files')
+                               path = '/gpfs/data1/cmongp1/mpaliyam/raganet/data/audio')
     
     val_data = Ragam_Dataset(train = False, 
-                             path = '/gpfs/data1/cmongp1/mpaliyam/raganet/data/numpy_files')
+                             path = '/gpfs/data1/cmongp1/mpaliyam/raganet/data/audio')
     
-    train_loader = DataLoader(train_data, batch_size = batch_size, shuffle = True, num_workers = 4)
+    train_loader = DataLoader(train_data, batch_size = batch_size, shuffle = True, num_workers = 15)
     
-    val_loader = DataLoader(val_data, batch_size = batch_size, shuffle = False, num_workers = 2)
+    val_loader = DataLoader(val_data, batch_size = batch_size, shuffle = False, num_workers = 10)
     
     '''training/validation loop'''
     print('--------------- TRAINING ---------------')
     writer = SummaryWriter('./runs/' + str(options.name) + '_LR_' + str(options.lr)
            + '_BS_' + str(options.bs)+ '_epochs_' + str(options.epochs) + '_stage_' + str(options.stage))
     
-
+    best_acc = 0
     for epoch in tqdm(range(epochs)):
         model.train()
         train_loss = []
-        for batch in train_loader:
+        for batch in tqdm(train_loader):
             data, label = batch
             data = data.to(device)
             label = label.to(device)
@@ -103,7 +103,7 @@ if __name__ == "__main__":
         model.eval()
         val_loss = []
         correct = torch.tensor([0])
-        for batch in val_loader:
+        for batch in tqdm(val_loader):
             with torch.no_grad():
                 data, label = batch
                 data = data.to(device)
@@ -118,14 +118,17 @@ if __name__ == "__main__":
                 val_loss.append(loss.item())
                 
         acc = (correct.item() / len(val_data)) * 100
+        if acc > best_acc:
+            torch.save(model, './trained_model' + options.name + '.tar')
+            best_acc = acc
         writer.add_scalar('Loss/train', np.mean(train_loss), epoch)
         writer.add_scalar('Loss/validation', np.mean(val_loss), epoch)
         writer.add_scalar('Accuracy/validation', acc, epoch)
         
-#         scheduler.step()
+        scheduler.step()
+    
     
 
-    torch.save(model.state_dict(), './trained_model' + options.name + '.tar')
     
     
     

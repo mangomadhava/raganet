@@ -19,12 +19,38 @@ from collections import OrderedDict
 class m_block(nn.Module):
     def __init__(self, inplanes, planes, y_k_s = 5):
         super(m_block, self).__init__()
+#         p_y = y_k_s // 2
+#         self.conv_s1 = nn.Conv2d(inplanes, planes, kernel_size=(1,y_k_s), padding=(0,p_y), bias=False)
+#         self.bn1 = nn.BatchNorm2d(planes)
+#         self.conv_s2 = nn.Conv2d(inplanes, planes, kernel_size=(3,y_k_s), padding=(1,p_y), bias=False)
+#         self.bn2 = nn.BatchNorm2d(planes)
+#         self.conv_s3 = nn.Conv2d(inplanes, planes, kernel_size=(5,y_k_s), padding=(2,p_y), bias=False)
+#         self.bn3 = nn.BatchNorm2d(planes)
+#         self.relu = nn.ReLU(inplace=True)
+        
+#         self.project = nn.Sequential(
+#             nn.Conv2d(3 * planes, planes, 1, bias=False),
+#             nn.BatchNorm2d(planes),
+#             nn.ReLU(inplace=True),
+#             nn.Dropout(0.1),
+#             nn.Conv2d(planes, inplanes, kernel_size=(1,3), padding=(0,1), bias=False),
+#             nn.BatchNorm2d(inplanes),
+#             nn.ReLU(inplace=True),
+#             nn.Dropout(0.1))
+        
+#         self.upsample = nn.Sequential(
+#             nn.Conv2d(inplanes, planes, kernel_size=(1,3), padding=(0,1), bias=False), 
+#             nn.BatchNorm2d(planes),
+#             nn.ReLU(inplace=True),
+#             nn.Dropout(0.1))
         p_y = y_k_s // 2
-        self.conv_s1 = nn.Conv2d(inplanes, planes, kernel_size=(1,y_k_s), padding=(0,p_y), bias=False)
+        self.conv_s1 = nn.Conv2d(inplanes, planes, kernel_size=(3,3), padding=1, bias=False)
         self.bn1 = nn.BatchNorm2d(planes)
-        self.conv_s2 = nn.Conv2d(inplanes, planes, kernel_size=(3,y_k_s), padding=(1,p_y), bias=False)
+        self.conv_s2 = nn.Conv2d(inplanes, planes, kernel_size=(3,3), 
+                                     padding=2, dilation = 2, bias=False)
         self.bn2 = nn.BatchNorm2d(planes)
-        self.conv_s3 = nn.Conv2d(inplanes, planes, kernel_size=(5,y_k_s), padding=(2,p_y), bias=False)
+        self.conv_s3 = nn.Conv2d(inplanes, planes, kernel_size=(3,3), 
+                                     padding=4, dilation = 4, bias=False)
         self.bn3 = nn.BatchNorm2d(planes)
         self.relu = nn.ReLU(inplace=True)
         
@@ -32,17 +58,17 @@ class m_block(nn.Module):
             nn.Conv2d(3 * planes, planes, 1, bias=False),
             nn.BatchNorm2d(planes),
             nn.ReLU(inplace=True),
-            nn.Dropout(0.1),
-            nn.Conv2d(planes, inplanes, kernel_size=(1,3), padding=(0,1), bias=False),
+            nn.Dropout(0.001),
+            nn.Conv2d(planes, inplanes, kernel_size=(3,3), padding=(1,1), bias=False),
             nn.BatchNorm2d(inplanes),
             nn.ReLU(inplace=True),
-            nn.Dropout(0.1))
+            nn.Dropout(0.001))
         
         self.upsample = nn.Sequential(
-            nn.Conv2d(inplanes, planes, kernel_size=(1,3), padding=(0,1), bias=False), 
+            nn.Conv2d(inplanes, planes, kernel_size=(3,3), padding=(1,1), bias=False), 
             nn.BatchNorm2d(planes),
             nn.ReLU(inplace=True),
-            nn.Dropout(0.1))
+            nn.Dropout(0.001))
 
     def forward(self, x):
         d_1_feat = self.conv_s1(x)
@@ -50,7 +76,7 @@ class m_block(nn.Module):
         d_3_feat = self.conv_s3(x)
         feat_vect = torch.cat([d_1_feat, d_2_feat, d_3_feat], dim = 1)
         # residual connection
-        out = self.project(feat_vect) + x 
+        out = self.project(feat_vect) + x
         out = self.upsample(out)
         return out
     
@@ -58,18 +84,18 @@ class m_block(nn.Module):
 class raganet(nn.Module):
     def __init__(self, height = 12, num_ragas = 2):
         super(raganet, self).__init__()
-        self.conv1 = nn.Conv2d(1, 16, kernel_size=(1,3), padding=(0,1), bias=False)
-        self.bn1 = nn.BatchNorm2d(16)
+        self.conv1 = nn.Conv2d(1, 32, kernel_size=(3,3), padding=(1,1), bias=False)
+        self.bn1 = nn.BatchNorm2d(32)
         self.relu = nn.ReLU(inplace=True)
-        self.maxpool = nn.MaxPool2d(kernel_size=2, stride=(1,2), padding=0)
-        self.maxpool_end = nn.MaxPool2d(kernel_size = 2, stride = (2,3), padding = 0)
+        self.maxpool = nn.MaxPool2d(kernel_size=2, stride=(2,2), padding=0)
+#         self.maxpool_end = nn.MaxPool2d(kernel_size = 2, stride = (2,2), padding = 0)
         
-        self.b1 = m_block(16, 32, 5)
-#         self.b2 = m_block(32, 32, 5)
-#         self.b3 = m_block(32, 64, 5)
-#         self.b4 = m_block(64, 128, 3)
-#         self.b5 = m_block(128, 256, 3)
-        self.fc = nn.Linear(105600, num_ragas)
+        self.b1 = m_block(32, 64, 5)
+        self.b2 = m_block(64, 64, 5)
+        self.b3 = m_block(64, 128, 5)
+        self.b4 = m_block(128, 256, 3)
+        self.b5 = m_block(256, 256, 3)
+        self.fc = nn.Linear(20480, num_ragas)
                 
     def forward(self, x):
         x = self.conv1(x)
@@ -79,17 +105,17 @@ class raganet(nn.Module):
         x = self.b1(x)
         x = self.maxpool(x)
 #         print(x.shape)
-#         x = self.b2(x)
-#         x = self.maxpool(x)
+        x = self.b2(x)
+        x = self.maxpool(x)
 # #         print(x.shape)
-#         x = self.b3(x)
-#         x = self.maxpool(x)
+        x = self.b3(x)
+        x = self.maxpool(x)
 # #         print(x.shape)
-#         x = self.b4(x)
-#         x = self.maxpool_end(x)
+        x = self.b4(x)
+        x = self.maxpool(x)
 # #         print(x.shape)
-#         x = self.b5(x)
-#         x = self.maxpool_end(x)
+        x = self.b5(x)
+        x = self.maxpool(x)
 # #         print(x.shape)
         x = x.view(x.size(0), -1)
 #         print(x.shape)
