@@ -12,7 +12,7 @@ from torch.utils.data import RandomSampler
 from torchvision import transforms, utils
 
 
-from dataset import *
+from dataset_torch import *
 from model import *
 
 
@@ -40,19 +40,22 @@ if __name__ == "__main__":
         model = extractor_cnn(dropout = .1, seperate = True)
     elif options.stage == 'raganet':
         model = raganet(num_ragas = 2)
+    elif options.stage == 'raga_resnet':
+        model = raga_resnet(num_ragas = 2)
+#     print(model)
         
-    if torch.cuda.device_count() > 1: 
-        model = nn.DataParallel(model)
-        model.to(f'cuda:{model.device_ids[0]}')
-    else: 
-        model = model.to(device)
-        
-    print(summary(model, (1,84,1292)))
+#     if torch.cuda.device_count() > 1: 
+#         model = nn.DataParallel(model)
+#         model.to(f'cuda:{model.device_ids[0]}')
+#     else: 
+#         model = model.to(device)
+    model = model.to(device)
+    print(summary(model, (1, 1323000)))
     print("Running on ", device)
           
     
-#     optim = torch.optim.Adam(model.parameters(), lr=options.lr)
-    optim = torch.optim.SGD(model.parameters(), lr = options.lr, momentum = .01)
+    optim = torch.optim.Adam(model.parameters(), lr=options.lr)
+#     optim = torch.optim.SGD(model.parameters(), lr = options.lr, momentum = .01)
     scheduler = torch.optim.lr_scheduler.MultiStepLR(optim, milestones=[], gamma=.1)
     print('Optimizer: ', optim)
     
@@ -74,9 +77,9 @@ if __name__ == "__main__":
     val_data = Ragam_Dataset(train = False, 
                              path = '/gpfs/data1/cmongp1/mpaliyam/raganet/data/audio')
     
-    train_loader = DataLoader(train_data, batch_size = batch_size, shuffle = True, num_workers = 15)
+    train_loader = DataLoader(train_data, batch_size = batch_size, shuffle = True, num_workers = 25)
     
-    val_loader = DataLoader(val_data, batch_size = batch_size, shuffle = False, num_workers = 10)
+    val_loader = DataLoader(val_data, batch_size = batch_size, shuffle = False, num_workers = 8)
     
     '''training/validation loop'''
     print('--------------- TRAINING ---------------')
@@ -113,7 +116,7 @@ if __name__ == "__main__":
                     label = label.repeat_interleave(10)
                 loss = loss_fn(model_output, label)
                 model_pred = torch.argmax(model_output, dim = 1)
-                correct += (model_pred == label).sum()
+                correct += (model_pred.cpu() == label.cpu()).sum()
                 
                 val_loss.append(loss.item())
                 

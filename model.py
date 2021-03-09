@@ -13,7 +13,31 @@ import pickle
 import numpy as np
 import os
 from collections import OrderedDict
+import torchaudio
+import torchaudio.transforms as T
+from torchvision import datasets, models, transforms
 
+class raga_resnet(nn.Module):
+    def __init__(self, num_ragas = 2):
+        super(raga_resnet, self).__init__()
+        model_ft = models.resnet18(pretrained=False)
+        num_ftrs = model_ft.fc.in_features
+        model_ft.fc = nn.Linear(num_ftrs, num_ragas)
+        self.model = model_ft
+        
+        # output sample rate from pitch shift
+        self.sample_rate = 44100
+        self.mel_model = torch.nn.Sequential(
+                T.MelSpectrogram(sample_rate = self.sample_rate,n_mels = 244, n_fft = 2048))
+        
+    def forward(self, x):
+        d = torch.zeros((x.shape[0], 1, 244, 1292)).to('cuda')
+        for i in range(x.shape[0]):
+#             print('mel', self.mel_model(x[i,:,:]).shape)
+            d[i,:,:,:] = self.mel_model(x[i,:,:])
+        x = d.repeat(1,3,1,1)
+        x = self.model(x)
+        return x
 
 
 class m_block(nn.Module):
@@ -81,7 +105,7 @@ class m_block(nn.Module):
         return out
     
         
-class raganet(nn.Module):
+class raganet(nn.Module): 
     def __init__(self, height = 12, num_ragas = 2):
         super(raganet, self).__init__()
         self.conv1 = nn.Conv2d(1, 32, kernel_size=(3,3), padding=(1,1), bias=False)
@@ -89,6 +113,9 @@ class raganet(nn.Module):
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=2, stride=(2,2), padding=0)
 #         self.maxpool_end = nn.MaxPool2d(kernel_size = 2, stride = (2,2), padding = 0)
+        self.sample_rate = 44100
+        self.mel_model = torch.nn.Sequential(
+                T.MelSpectrogram(sample_rate = self.sample_rate,n_mels = 24))
         
         self.b1 = m_block(32, 64, 5)
         self.b2 = m_block(64, 64, 5)
@@ -98,6 +125,13 @@ class raganet(nn.Module):
         self.fc = nn.Linear(20480, num_ragas)
                 
     def forward(self, x):
+        d = torch.zeros((x.shape[0], 1, 24, 7867)).to('cuda')
+        print(d.device)
+        for i in range(x.shape[0]):
+            print('mel', self.mel_model(x[i,:,:]).shape)
+            d[i,:,:,:] = self.mel_model(x[i,:,:])
+        print(d.device)
+        x = d
         x = self.conv1(x)
         x = self.bn1(x)
 #         x = self.relu(x)
